@@ -1,15 +1,19 @@
 from discord import app_commands, Client
 import discord
 import random
-from discord.ext import commands
+from discord.ext import commands 
 
-class PygmyCommands(app_commands.Group, name="pygmybot"):
-    def __init__(self, tree: app_commands.CommandTree, client: Client)-> None:
+class PygmyCommands(commands.GroupCog, name="pygcommands"):
+    def __init__(self, bot: commands.Bot)-> None:
+        self.bot = bot
         super().__init__()
-        self.tree = tree
-        self.client = client
+
     
     #region Generic Commands
+    @app_commands.command(name="set_command_prefix")
+    async def set_command_prefix(self, interaction: discord.Interaction, new_prefix:str):
+        self.bot.command_prefix = new_prefix
+        await interaction.channel.send("command prefix has been changed to '"+new_prefix+"'")
 
     @app_commands.command(name="guess_the_roll")
     @app_commands.choices(rolls=[
@@ -45,33 +49,5 @@ class PygmyCommands(app_commands.Group, name="pygmybot"):
                 channel = await interaction.user.create_dm()
                 await channel.send("Hello!")
                 await interaction.response.send_message("I sent a dm saying hello!")
-
-    #endregion
-
-    #region Voice Commands
-    @app_commands.command(name="connect")
-    async def join_voice_chat(self, interaction: discord.Interaction, *, channel: discord.VoiceChannel):
-        #Joins a voice channel
-
-        await interaction.response.send_message("Attempting to join the voice channel: " + channel.name, ephemeral=True)
-
-        guild = interaction.guild
-
-        if guild.voice_client is not None:
-            await guild.voice_client.move_to(channel)
-            await guild.change_voice_state(channel=channel,self_deaf=True)
-            return
-
-        await channel.connect(self_deaf=True)
-
-    @app_commands.command(name="disconnect", description="Bot will leave any voice chat it is currently in.")
-    async def disconnect_voice_chat(self, interaction: discord.Interaction):
-        
-        if (interaction.guild.voice_client is not None):
-            await interaction.response.send_message("Leaving voice channel.", ephemeral=True)
-            await interaction.guild.voice_client.disconnect()
-            await interaction.guild.voice_client.cleanup()
-        else:
-            await interaction.response.send_message("The bot is not in any voice channel.", ephemeral=True)
 
     #endregion
