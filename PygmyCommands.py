@@ -25,6 +25,7 @@ class PygmyCommands(commands.GroupCog, name="pygcommands"):
         discord.app_commands.Choice(name='6', value=6),
     ])
     async def guess_the_roll(self, interaction: discord.Interaction, rolls: discord.app_commands.Choice[int]):
+        """Guess a random number from 1 to 6, and hope you got it right!."""
         ranInt = random.randrange(1, 7)
         if ranInt == rolls.value:
             await interaction.response.send_message(f"Rolled {ranInt}, and you guessed correctly!")

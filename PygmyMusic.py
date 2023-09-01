@@ -5,11 +5,8 @@ import time
 from discord import app_commands
 from discord.ext import commands
 
-
-
 # Suppress noise about console usage from errors
 youtube_dl.utils.bug_reports_message = lambda: ''
-
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -30,7 +27,6 @@ ffmpeg_options = {
 }
 
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
-
 
 class YTDLSource(discord.PCMVolumeTransformer):
     def __init__(self, source, *, data, volume=0.5):
@@ -60,6 +56,10 @@ class PygmyMusic(commands.GroupCog, name="pygmusic"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         super().__init__()
+
+    async def ensure_voice(self, interaction: discord.Interaction):
+
+        return await self.join_voice_channel(interaction=interaction)
     
     async def join_voice_channel(self, interaction: discord.Interaction):
         
@@ -93,8 +93,9 @@ class PygmyMusic(commands.GroupCog, name="pygmusic"):
         return True
         
 
-    @app_commands.command(name="disconnect", description="Bot will leave any voice chat it is currently in.")
+    @app_commands.command(name="disconnect")
     async def disconnect_voice_chat(self, interaction: discord.Interaction):
+        """Bot will leave any voice chat it is currently in."""
         
         if interaction.guild.voice_client is not None and interaction.guild.voice_client.channel is not None:
             await interaction.response.send_message("Leaving voice channel.", ephemeral=True)
@@ -109,26 +110,20 @@ class PygmyMusic(commands.GroupCog, name="pygmusic"):
     #region Music Commands
 
     @app_commands.command(name="play")
-    async def play(self, interaction: discord.Interaction, *, url:str):
-        """Plays from a url (almost anything youtube_dl supports)"""
+    async def play(self, interaction: discord.Interaction, *, url:str, loop: bool = None):
+        """Plays audio from a URL"""
         
-        print("Attempting to ensure in voice chat")
+        await interaction.response.defer(thinking=True)
+
         in_voice = await self.ensure_voice(interaction=interaction)
 
         if in_voice == False:
             print("Leaving, user is not in voice chat")
             return
-        print("Should be present in voice chat")
-        time.sleep(0.5)
 
-        async with interaction.channel.typing():
-            player = await YTDLSource.from_url(url, loop=self.bot.loop)
+        player = await YTDLSource.from_url(url, loop=self.bot.loop, stream=True)
         
         interaction.guild.voice_client.play(player, after=lambda e: print(f'Player error: {e}') if e else None)
 
-        await interaction.response.send_message(f'Now playing: {player.title}')
+        await interaction.followup.send(content=f'Now playing: {player.title}')
     #endregion
-
-    async def ensure_voice(self, interaction: discord.Interaction):
-
-        return await self.join_voice_channel(interaction=interaction)
