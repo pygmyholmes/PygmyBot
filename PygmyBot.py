@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from PygmyCommands import PygmyCommands
+from PygmyMusic import PygmyMusic
 from Config import Config
 
 #A discord bot implementing discord.Client
@@ -40,6 +41,7 @@ class PygmyBot(commands.Bot):
     async def RegisterCommands(self):
         print("Registering commands!")
         await self.add_cog(PygmyCommands(self))
+        await self.add_cog(PygmyMusic(self))
         await self.tree.sync()
         
         print("Commands Registered!")
