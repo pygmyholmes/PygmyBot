@@ -1,3 +1,4 @@
 #remove the .example from this file, and fill in the Token value to use it.
 [Discord]
-Token = token
+Token = insert_token_here
+Command_Prefix = insert_prefix_here

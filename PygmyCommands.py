@@ -1,4 +1,4 @@
-from discord import app_commands, Client
+from discord import app_commands
 import discord
 import random
 from discord.ext import commands 
@@ -7,7 +7,6 @@ class PygmyCommands(commands.GroupCog, name="pygcommands"):
     def __init__(self, bot: commands.Bot)-> None:
         self.bot = bot
         super().__init__()
-
     
     #region Generic Commands
     @app_commands.command(name="set_command_prefix")
