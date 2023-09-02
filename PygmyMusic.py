@@ -2,12 +2,15 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from YTDLSource import YTDLSource
-from queue import Queue
+from queue import SimpleQueue
 
 class PygmyMusic(commands.GroupCog, name="pygmusic"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        #self.guildQueues = dict[int, Queue] = {}
+        self.guildMusicPlayers = dict[int, GuildMusicPlayer]()
+        self.guildMusicPlayers[0] = GuildMusicPlayer(self)
+        self.guildMusicPlayers[0].add_to_queue("thing")
+        self.guildMusicPlayers[0].clear_queue()
         super().__init__()
 
     async def ensure_voice(self, interaction: discord.Interaction):
@@ -36,16 +39,22 @@ class PygmyMusic(commands.GroupCog, name="pygmusic"):
         
 
     @app_commands.command(name="disconnect")
-    async def disconnect_voice_chat(self, interaction: discord.Interaction):
+    async def disconnect(self, interaction: discord.Interaction):
         """Bot will leave any voice chat it is currently in."""
-        
-        if interaction.guild.voice_client is not None and interaction.guild.voice_client.channel is not None:
-            await interaction.response.send_message("Leaving voice channel.", ephemeral=True)
-            await interaction.guild.voice_client.disconnect()
 
+        voice_channel_left = self.disconnect_voice_client(interaction.guild)
+        
+        if voice_channel_left:
+            await interaction.response.send_message("Leaving voice channel.", ephemeral=True)
         else:
             await interaction.response.send_message("The bot is not in any voice channel.", ephemeral=True)
 
+    async def disconnect_voice_client(self, guild: discord.Guild):
+        if guild.voice_client is not None and guild.voice_client.channel is not None:
+            await guild.voice_client.disconnect()
+            return True
+        return False
+        pass
     #region Music Commands
 
     @app_commands.command(name="play")
@@ -71,3 +80,22 @@ class PygmyMusic(commands.GroupCog, name="pygmusic"):
 
         await interaction.followup.send(content=f'Now playing: {player.title}')
     #endregion
+
+
+#region Guild Music Player
+
+class GuildMusicPlayer():
+    def __init__(self, musicCog:PygmyMusic):
+        self.musicCog = musicCog
+        self.queue = SimpleQueue[str]()
+        super().__init__()
+    
+    def add_to_queue(self, url:str):
+        self.queue.put(url)
+    
+    def clear_queue(self):
+        #somehow clear the queue? what type of container doesn't have a .clear() method smh
+        return
+
+
+#endregion
