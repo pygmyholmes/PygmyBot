@@ -11,7 +11,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
     'format': 'bestaudio/best',
     'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
     'restrictfilenames': True,
-    'noplaylist': True,
+    'noplaylist': False,
     'nocheckcertificate': True,
     'ignoreerrors': False,
     'logtostderr': False,
@@ -33,16 +33,25 @@ class YTDLSource(discord.PCMVolumeTransformer):
         self.data = data
         self.title = data.get('title')
         self.url = data.get('url')
-        
+    
+    @classmethod
+    async def extract_url_data(cls, url, event_loop=None, download=False):
+        event_loop = event_loop or asyncio.get_event_loop()
+        data = await event_loop.run_in_executor(None, lambda: YTDLSource.ytdl.extract_info(url, download))
+        return data
+    
+    @classmethod
+    def get_player_from_data(cls, data, stream):
+        filename = data['url'] if stream else YTDLSource.ytdl.prepare_filename(data)
+        return cls(discord.FFmpegPCMAudio(filename, **YTDLSource.FFMPEG_OPTIONS), data=data)
 
     @classmethod
-    async def from_url(cls, url, *, loop=None, stream=False):
-        loop = loop or asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, lambda: YTDLSource.ytdl.extract_info(url, download=not stream))
+    async def play_from_url(cls, url, *, loop=None, stream=False):
+        """Simply obtain the player for one song from a link."""
+        data = await YTDLSource.extract_url_data(url, event_loop=loop, download=not stream)
 
         if 'entries' in data:
             # take first item from a playlist
             data = data['entries'][0]
-
-        filename = data['url'] if stream else YTDLSource.ytdl.prepare_filename(data)
-        return cls(discord.FFmpegPCMAudio(filename, **YTDLSource.FFMPEG_OPTIONS), data=data)
+        
+        return YTDLSource.get_player_from_data(data, stream)

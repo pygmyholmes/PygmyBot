@@ -8,6 +8,11 @@ from Config import Config
 #A discord bot implementing discord.Client
 #Commands are implemented through commands.cogs
 
+
+##TODO:
+#1. add a reference to channel in PygmyBot.py that references the last channel someone has sent a command to and name it bot.command_channel, and use that to send any messages to if not directly responding to an interaction.
+
+
 class PygmyBot(commands.Bot):
     #region PygmyBot Events
 
@@ -41,10 +46,9 @@ class PygmyBot(commands.Bot):
 
         
     async def register_cogs(self):
-        await self.add_cog(PygmyCommands(self))
+        #await self.add_cog(PygmyCommands(self))
         await self.add_cog(PygmyAudio(self))
     
-    @EventManager.ensure_event_exists(name=EVENT_NAME_GUILD_SETTINGS_CHANGED)
     @EventManager.trigger_event(name=EVENT_NAME_GUILD_SETTINGS_CHANGED)
     def set_guild_setting(self, guild_id:int, settings_id:str, settings_value:object):
         if guild_id not in self.guild_settings:

@@ -14,16 +14,6 @@ class EventManager(object):
                 return result
             return wrapper
         return decorator
-    
-    @staticmethod
-    def ensure_event_exists(name:str):
-        def decorator(func):
-            @wraps(func)
-            def wrapper(self, *args, **kwargs):
-                self.event_manager.add_event(name)
-                return func(self, *args, **kwargs)
-            return wrapper
-        return decorator
 
     def __init__(self):
         self.events = dict[str, EventManager.Event]()
@@ -50,12 +40,12 @@ class EventManager(object):
             self.listeners = []
         
         def __iadd__(self, listener):
-            """shortcut for using += to add a listener"""
             self.listeners.append(listener)
             return self
         
         def __isub__(self, listener):
-            self.listeners.remove(listener)
+            if listener in self.listeners:
+                self.listeners.remove(listener)
             return self
 
         def trigger(self, *args, **kwargs):
