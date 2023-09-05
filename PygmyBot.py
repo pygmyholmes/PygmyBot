@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from PygmyCommands import PygmyCommands
-from PygmyAudio import PygmyAudio
+from PygmyAudio import PygmyAudio, GuildAudioPlayer
 from EventManager import EventManager
 from Config import Config
 
@@ -23,7 +23,6 @@ class PygmyBot(commands.Bot):
     def start_bot(self):
         self.run(Config.CONFIG["Discord"]["Token"])
 
-
     def __init__(self, command_prefix):
         intents = discord.Intents.all()
         intents.message_content = True
@@ -31,12 +30,11 @@ class PygmyBot(commands.Bot):
         self.guild_settings = dict[int, dict[str, object]]()
         self.event_manager = EventManager()
         super().__init__(intents=intents, command_prefix=command_prefix)
-
-    
+ 
     async def on_ready(self):
+        self.create_guild_settings()
         await self.register_commands()
         print("PygmyBot is set up!")
-
 
     async def register_commands(self):
         print("Registering commands!")
@@ -48,6 +46,17 @@ class PygmyBot(commands.Bot):
     async def register_cogs(self):
         #await self.add_cog(PygmyCommands(self))
         await self.add_cog(PygmyAudio(self))
+    
+    def create_guild_settings(self):
+        for guild in self.guilds:
+            print(guild.id)
+            self.guild_settings[guild.id] = dict[str,object]()
+            self.setup_guilds_settings(self.guild_settings[guild.id])
+    
+    def setup_guilds_settings(self, guild_setting_dict: dict[str, object]):
+        #if there are any other guild settings, initialise them here with default values.
+        guild_setting_dict[GuildAudioPlayer.SETTINGS_ID_SKIP_AMOUNT] = int(Config.CONFIG["GuildAudioPlayer"]["Default_Skips_Needed"])
+
     
     @EventManager.trigger_event(name=EVENT_NAME_GUILD_SETTINGS_CHANGED)
     def set_guild_setting(self, guild_id:int, settings_id:str, settings_value:object):
