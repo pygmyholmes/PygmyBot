@@ -3,5 +3,5 @@
 Token = insert_token_here
 Command_Prefix = insert_prefix_here
 
-[GuildAudioPlayer]
+[PygmyAudio]
 Default_Skips_Needed = _insert_default_skips_needed_here
