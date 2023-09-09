@@ -22,7 +22,6 @@ class PygmyAudio(commands.Cog):
         self.cleanup_event_listeners()
     
     def init_event_listeners(self):
-        print("Adding event listeners from PygmyAudio")
         self.bot.event_manager.add_listener(self.bot.EVENT_NAME_GUILD_SETTINGS_CHANGED, self.on_guild_settings_changed)
         self.bot.event_manager.add_listener(self.bot.EVENT_NAME_GUILD_SETTINGS_CREATED, self.on_setup_guilds_settings)
 
@@ -31,17 +30,15 @@ class PygmyAudio(commands.Cog):
         self.bot.event_manager.remove_listener(self.bot.EVENT_NAME_GUILD_SETTINGS_CREATED, self.on_setup_guilds_settings)
     
     def on_guild_settings_changed(self, guild_id:int, settings_id:str, settings_value:object):
-        print("PygmyAudio guild settings changed called")
-        for guild in self.guild_audio_players:
-            self.guild_audio_players[guild].on_guild_settings_changed(guild_id, settings_id, settings_value)
+        if guild_id in self.guild_audio_players:
+            self.guild_audio_players[guild_id].on_guild_settings_changed(guild_id, settings_id, settings_value)
 
     def on_setup_guilds_settings(self, guild_setting_dict: dict[str, object]):
-        print("PygmyAudio guild settings created called")
         guild_setting_dict[PygmyAudio.SETTINGS_ID_SKIP_AMOUNT] = int(Config.CONFIG["PygmyAudio"]["Default_Skips_Needed"])
 
 #region Voice Chat 
 
-    async def try_ensure_voice(self, interaction: discord.Interaction):
+    async def check_user_in_voice(self, interaction: discord.Interaction):
         
         channel: discord.VoiceChannel = None
 
@@ -98,11 +95,13 @@ class PygmyAudio(commands.Cog):
     async def command_set_skips_needed_amount(self, interaction: discord.Interaction, skips_needed: int):
         """Set the amount of skips needed"""
 
+        await interaction.response.defer()
+
         self.bot.set_guild_setting(interaction.guild.id, 
                                    PygmyAudio.SETTINGS_ID_SKIP_AMOUNT, 
-                                   {True: 1, False: skips_needed} [skips_needed == 0])  
+                                   {True: 1, False: skips_needed} [skips_needed <= 0])  
         
-        await interaction.response.send_message(f"Set skip amounts needed to: {skips_needed}")
+        await interaction.followup.send(f"Set skip amounts needed to: {skips_needed}")
     
     @app_commands.command(name="simple_play")
     async def command_simple_play(self, interaction: discord.Interaction, url:str):
@@ -111,14 +110,13 @@ class PygmyAudio(commands.Cog):
         await interaction.response.defer(thinking=True)
 
         try:
-            in_voice = await self.try_ensure_voice(interaction=interaction)
+            in_voice = await self.check_user_in_voice(interaction=interaction)
 
             if in_voice == False:
                 await interaction.followup.send(content="You are not in a voice channel.")
                 return
         
             if interaction.guild.voice_client.is_playing():
-                print("currently playing something, stopping it")
                 interaction.guild.voice_client.stop()
 
             player = await YTDLSource.play_from_url(url, loop=self.bot.loop, stream=True)
@@ -136,7 +134,7 @@ class PygmyAudio(commands.Cog):
 
         await interaction.response.defer(thinking=True)
         try:
-            in_voice = await self.try_ensure_voice(interaction=interaction)
+            in_voice = await self.check_user_in_voice(interaction=interaction)
             if in_voice == False:
                 await interaction.followup.send(content="You are not in a voice channel.")
                 return
@@ -146,9 +144,13 @@ class PygmyAudio(commands.Cog):
             if len(queued_values) == 0:
                 await interaction.followup.send(f"Failed to find audio. Nothing was added to the queue.")
                 return
+            
+            already_playing = self.guild_audio_players[interaction.guild.id].is_playing
 
-            is_playing = self.guild_audio_players[interaction.guild.id].try_play_next()
-            if is_playing == False:
+            if already_playing == False:
+                self.guild_audio_players[interaction.guild.id].try_play()
+
+            if already_playing == True:
                 await interaction.followup.send(f"Added {len(queued_values)} items to queue. Queue is now {len(self.guild_audio_players[interaction.guild.id].queue)-1} long.")
                 return
             await interaction.followup.send(self.guild_audio_players[interaction.guild.id].get_now_playing_text())
@@ -156,8 +158,6 @@ class PygmyAudio(commands.Cog):
             await interaction.followup.send("Sorry, there was an error.")
             raise
             
-    
-    
     @app_commands.command(name="clear_queue")
     async def command_clear_queue(self, interaction: discord.Interaction):
         if interaction.guild.id in self.guild_audio_players:
@@ -166,7 +166,6 @@ class PygmyAudio(commands.Cog):
             return
         await interaction.response.send_message("There is no active voice client.")
             
-    
     @app_commands.command(name="skip")
     async def command_skip(self, interaction: discord.Interaction):
         """Requests to skip the current audio."""
@@ -194,7 +193,7 @@ class PygmyAudio(commands.Cog):
     @app_commands.command(name="stop")
     async def command_stop(self, interaction: discord.Interaction):
         if interaction.guild.id in self.guild_audio_players:
-            self.guild_audio_players[interaction.guild.id].stop()
+            self.guild_audio_players[interaction.guild.id].shutdown()
             await interaction.response.send_message("Stopped audio.")
             return
         await interaction.response.send_message("There is no active voice client")
@@ -205,6 +204,8 @@ class PygmyAudio(commands.Cog):
 #region Guild Music Player
 
 from collections import deque
+import time
+import asyncio
 
 class GuildAudioPlayer():
 
@@ -213,20 +214,26 @@ class GuildAudioPlayer():
         self.music_cog = music_cog
         self.bot = music_cog.bot
         self.guild = guild
-        self.loop = False
+        self.loop_song = False
+        self.loop_queue = False
+        self.is_playing = False
         self.users_requesting_skips = list[int]()
         self.queue = deque[GuildAudioInstance]()
     
-    def try_play_next(self, forceSkip: bool = False):
-        if self.guild.voice_client.is_playing():
-            if forceSkip == False:
-                return False
-            self.skip_current()
-        
+    def cleanup(self):
+        return
+    
+    def try_play(self):
+        self._try_play_next()
+    
+    def _try_play_next(self):
         if len(self.queue) == 0:
+            self.is_playing = False
             return False
         
-        next_audio_instance = self.peek_next_audio()
+        self.is_playing = True
+        
+        next_audio_instance = self.peek_current_audio()
 
         ytdl_source_player = YTDLSource.get_player_from_data(next_audio_instance.data, stream=True)
         self._play_source(ytdl_source_player)
@@ -234,14 +241,7 @@ class GuildAudioPlayer():
     
     def _play_source(self, source: YTDLSource):
         self.current_source = source
-        self.guild.voice_client.play(source, 
-                                     after=lambda e: 
-                                     print(f'Player error: {e}') if e else None
-                                     )
-        #todo: self.send_now_playing_message()
-    
-    #async def send_now_playing_message(self):
-        #await self.bot.command_channel.send_message(self.get_now_playing_text())
+        self.guild.voice_client.play(source, after=self._current_source_finished)
 
     def get_now_playing_text(self):
         if self.current_source is not None:
@@ -264,13 +264,17 @@ class GuildAudioPlayer():
         
         return queued_values
 
+    def shutdown(self):
+        self.clear_queue()
+        self._stop()
+    
     def clear_queue(self):
         self.queue.clear()
     
     def add_to_front_of_queue(self, url:str):
         self.queue.appendleft(url)
     
-    def peek_next_audio(self):
+    def peek_current_audio(self):
         return self.queue[0]
     
     def peek_recently_added_audio(self):
@@ -289,9 +293,8 @@ class GuildAudioPlayer():
 
         if len(self.users_requesting_skips) >= skips_needed:
                 print("This shouldn't have happened. We shouldn't need to request to skip if the amount is already equal to or past the amount needed")
-                self.skip_current()
-                is_playing = self.try_play_next()
-                if is_playing:
+                self._skip_current()
+                if len(self.queue) > 0:
                     await interaction.response.send_message("Skipping current song!")
                 else:
                     await interaction.response.send_message("Skipping current song, no other songs in queue.")
@@ -302,9 +305,9 @@ class GuildAudioPlayer():
             self.users_requesting_skips.append(interaction.user.id)
             
             if len(self.users_requesting_skips) >= skips_needed:
-                self.skip_current()
-                is_playing = self.try_play_next()
-                if is_playing:
+                self._skip_current()
+                
+                if len(self.queue) > 0:
                     await interaction.response.send_message("Skipping current song!")
                 else:
                     await interaction.response.send_message("Skipping current song, no other songs in queue.")
@@ -318,36 +321,44 @@ class GuildAudioPlayer():
 
         return
 
-    def skip_current(self):
+    def _skip_current(self):
         self.users_requesting_skips.clear()
-        audio_instance = self.queue.popleft()
-        self.stop()
-        del audio_instance
+        self._clear_current_source()
     
-    def current_audio_finished():
-        print("Current audio has finished.")
-    
-    def stop(self):
+    def _stop(self):
         if self.guild.voice_client.is_playing():
             self.guild.voice_client.stop()
         self.current_source = None
+    
+    def _clear_current_source(self):
+        if self.is_playing == False or len(self.queue) == 0:
+            return
+        
+        audio_instance = self.queue.popleft()
+        self._stop()
+        del audio_instance
+        self.is_playing = False
+        
+    def _current_source_finished(self, e):
+        if not self.guild.voice_client:
+            return
+        print(f"Current audio has finished. {e if e else ''}")
+        self._clear_current_source()
+        self._try_play_next()
+        if self.is_playing == False:
+            asyncio.run_coroutine_threadsafe(self.music_cog.disconnect_voice_client(self.guild), self.bot.loop)
 
     #region Guild Settings Updates
 
     def on_guild_settings_changed(self, guild_id:int, settings_id:str, settings_value:object):
-        print("GuildAudioPlayer guild settings changed called")
-        self.on_skip_amount_needed_changed(guild_id, settings_id, settings_value)
+        self._on_skip_amount_needed_changed(guild_id, settings_id, settings_value)
 
-    def on_skip_amount_needed_changed(self, guild_id:int, settings_id:str, settings_value:object):
-        print("Checking skip amount needed guild setting")
+    def _on_skip_amount_needed_changed(self, guild_id:int, settings_id:str, settings_value:object):
         if settings_id != PygmyAudio.SETTINGS_ID_SKIP_AMOUNT:
             return
         
-        print("skip amount needed id matched")
-        
         if len(self.users_requesting_skips) >= settings_value:
-            self.skip_current()
-            self.try_play_next()
+            self._skip_current()
             #TODO: send a message to last command channel saying that the new skip amount is enough to skip, and that its triggered a skip.
             return
 

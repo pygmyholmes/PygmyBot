@@ -31,9 +31,7 @@ class EventManager(object):
         self.events[event_id] -= event_listener
     
     def trigger(self, event_id:str, *args, **kwargs):
-        print(f"triggering {event_id}")
         self.events[event_id].trigger(*args, **kwargs)
-        print(f"triggered {event_id}")
 
     class Event:
         def __init__(self):
