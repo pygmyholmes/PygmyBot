@@ -1,6 +1,7 @@
 #remove the .example from this file, and fill in the Token value to use it.
 [Discord]
 Token = insert_token_here
+TestToken = insert_test_token_here (this will be your test bot so it doesn't interrupt live bot while you're testing new features)
 Command_Prefix = insert_prefix_here
 
 [PygmyAudio]

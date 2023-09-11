@@ -1,4 +1,5 @@
 import discord
+import sys
 from discord.ext import commands
 from PygmyCommands import PygmyCommands
 from PygmyAudio import PygmyAudio, GuildAudioPlayer
@@ -20,9 +21,16 @@ class PygmyBot(commands.Bot):
     EVENT_NAME_GUILD_SETTINGS_CREATED = "guild_settings_setup"
 
     #endregion
+
+    def get_token(self):
+        if sys.argv and len(sys.argv) > 0:
+            for arg in sys.argv:
+                if str.lower(arg) == "test":
+                    return Config.CONFIG["Discord"]["TestToken"]
+        return Config.CONFIG["Discord"]["Token"]
    
     def start_bot(self):
-        self.run(Config.CONFIG["Discord"]["Token"])
+        self.run(self.get_token())
 
     def __init__(self, command_prefix):
         intents = discord.Intents.all()
