@@ -288,6 +288,20 @@ class PygmyAudio(commands.Cog):
             await interaction.response.send_message("Bumped.")
             return
         await interaction.response.send_message("There is no active voice client.")
+
+    @app_commands.command(name="removequeueitem")
+    async def command_remove_queue_item(self, interaction: discord.Interaction, index:int):
+        """Remove an item from the queue at a position. Use /showqueue command to get the position"""
+        index = index-1
+        if interaction.guild.id in self.guild_audio_players:
+            if len(self.guild_audio_players[interaction.guild.id].queue)-1 >= index:
+                title = self.guild_audio_players[interaction.guild.id].queue[index].data.get('title')
+                self.guild_audio_players[interaction.guild.id].remove_queue_item(index)
+                await interaction.response.send_message(f"Removed the item at position: {index+1}")
+            else:
+                await interaction.response.send_message("There is not that many items in the queue.")
+            return
+        await interaction.response.send_message("There is no active voice client.")
         
 #endregion
 
@@ -397,6 +411,13 @@ class GuildAudioPlayer():
     
     def pause(self):
         self.guild.voice_client.pause()
+    
+    def remove_queue_item(self, index:int):
+        if index == 0:
+            self._skip_current()
+            return
+        
+        self.queue.remove(self.queue[index])
     
     def unpause(self):
         if self.guild.voice_client.is_paused():
