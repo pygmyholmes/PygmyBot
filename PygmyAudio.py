@@ -61,7 +61,7 @@ class PygmyAudio(commands.Cog):
             await guild.change_voice_state(channel=channel,self_deaf=True)
             return
 
-        await channel.connect(self_deaf=True)
+        await channel.connect(self_deaf=True, reconnect=True)
         self.guild_audio_players[guild.id] = GuildAudioPlayer(self, guild)
         
 
@@ -501,7 +501,7 @@ class GuildAudioPlayer():
 
         print(f"Current audio has finished. {e if e else ''}")
 
-        if len(self.guild.voice_client.channel.members) == 0:
+        if len(self.guild.voice_client.channel.members) <= 1:
             print("audio finished and no one is in the voice channel, evacuating.")
             asyncio.run_coroutine_threadsafe(self.music_cog.disconnect_voice_client(self.guild), self.bot.loop)
 
