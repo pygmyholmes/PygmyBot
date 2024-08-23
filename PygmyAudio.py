@@ -1,7 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-from YTDLSource import YTDLSource
+from YTDLPSource import YTDLPSource
 
 from Config import Config
 
@@ -316,7 +316,7 @@ import random
 class GuildAudioPlayer():
 
     def __init__(self, music_cog:PygmyAudio, guild: discord.Guild):
-        self.current_source: YTDLSource = None
+        self.current_source: YTDLPSource = None
         self.music_cog = music_cog
         self.bot = music_cog.bot
         self.guild = guild
@@ -341,11 +341,11 @@ class GuildAudioPlayer():
         
         next_audio_instance = self.peek_current_audio()
 
-        ytdl_source_player = YTDLSource.get_player_from_data(next_audio_instance.data, stream=True)
+        ytdl_source_player = YTDLPSource.get_player_from_data(next_audio_instance.data, stream=True)
         self._play_source(ytdl_source_player)
         return True
     
-    def _play_source(self, source: YTDLSource):
+    def _play_source(self, source: YTDLPSource):
         self.current_source = source
         self.guild.voice_client.play(source, after=self._current_source_finished)
 
@@ -355,7 +355,7 @@ class GuildAudioPlayer():
         return "Nothing is currently playing."
 
     async def add_to_queue(self, url:str, user: discord.User):
-        data = await YTDLSource.extract_url_data(url=url,event_loop=self.bot.loop, download=False)
+        data = await YTDLPSource.extract_url_data(url=url,event_loop=self.bot.loop, download=False)
         amount_queued:int = 0
 
         if 'entries' in data:
@@ -371,7 +371,7 @@ class GuildAudioPlayer():
         return amount_queued
         
     async def add_to_front_of_queue(self, url:str, user: discord.User):
-        data = await YTDLSource.extract_url_data(url=url,event_loop=self.bot.loop, download=False)
+        data = await YTDLPSource.extract_url_data(url=url,event_loop=self.bot.loop, download=False)
         amount_queued:int = 0
 
         if 'entries' in data:
